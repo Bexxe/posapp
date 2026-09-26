@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Ödeal POS Satış",
+    "slug": "odeal-pos-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#0F172A"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0F172A"
+      },
+      "package": "com.posapp.odeal"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ad76b4cc-3415-4a1f-bd0d-82ff8b214d17"
+      }
+    }
+  }
+}
