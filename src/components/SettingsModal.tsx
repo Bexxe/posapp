@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -18,6 +19,7 @@ interface SettingsModalProps {
   settings: OdealSettings;
   onSave: (newSettings: OdealSettings) => void;
   onClose: () => void;
+  onLogout?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -25,6 +27,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   onSave,
   onClose,
+  onLogout,
 }) => {
   const [productName, setProductName] = useState(settings.productName || 'FerhatBalik');
   const [vatRate, setVatRate] = useState<number>(typeof settings.vatRate === 'number' ? settings.vatRate : 1);
@@ -48,6 +51,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     };
 
     onSave(validatedSettings);
+  };
+
+  const handleLogoutPress = () => {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm('Oturumu kapatmak istediğinize emin misiniz? Tekrar giriş yapmanız gerekecektir.')) {
+        onClose();
+        onLogout?.();
+      }
+    } else {
+      Alert.alert(
+        'Oturumu Kapat',
+        'Çıkış yapmak istediğinize emin misiniz? Tekrar giriş yapmanız gerekecektir.',
+        [
+          { text: 'Vazgeç', style: 'cancel' },
+          {
+            text: 'Çıkış Yap',
+            style: 'destructive',
+            onPress: () => {
+              onClose();
+              onLogout?.();
+            },
+          },
+        ]
+      );
+    }
   };
 
   const vatQuickRates = [1, 10, 20];
@@ -173,6 +201,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     Balık ve temel gıda satışlarında KDV genellikle %1'dir.
                   </Text>
                 </View>
+
+                {/* Güvenlik & Oturum Bölümü */}
+                {onLogout && (
+                  <View style={styles.logoutSection}>
+                    <View style={styles.sectionHeaderRow}>
+                      <AppIcon name="lock" size={16} color="#64748B" />
+                      <Text style={styles.sectionTitle}>Giriş & Güvenlik</Text>
+                    </View>
+                    <View style={styles.sessionCard}>
+                      <View style={styles.sessionInfo}>
+                        <Text style={styles.sessionUserTitle}>Giriş Yapan Kullanıcı</Text>
+                        <Text style={styles.sessionUser}>ferhatbalıkçılık</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.logoutBtn}
+                        onPress={handleLogoutPress}
+                        activeOpacity={0.7}
+                      >
+                        <AppIcon name="log-out" size={16} color="#DC2626" />
+                        <Text style={styles.logoutBtnText}>Çıkış Yap</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
               </View>
             </ScrollView>
 
@@ -441,5 +493,53 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  logoutSection: {
+    marginTop: 6,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    gap: 8,
+  },
+  sessionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  sessionInfo: {
+    gap: 2,
+  },
+  sessionUserTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    textTransform: 'uppercase',
+  },
+  sessionUser: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  logoutBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#DC2626',
   },
 });

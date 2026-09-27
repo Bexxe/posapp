@@ -23,6 +23,8 @@ import { SettingsModal } from './src/components/SettingsModal';
 import { ResultModal } from './src/components/ResultModal';
 import { CalculatorModal } from './src/components/CalculatorModal';
 import { IbanQrModal } from './src/components/IbanQrModal';
+import { LoginScreen } from './src/components/LoginScreen';
+import { checkAuthSession, performLogout } from './src/services/authService';
 
 // Web ortamında esnek tam ekran desteği (Tarayıcı barı değişimlerinde taşmayı ve kesilmeyi önler)
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
@@ -58,6 +60,7 @@ export default function App() {
   const isVeryNarrowScreen = windowWidth < 370;
 
   const [settings, setSettings] = useState<OdealSettings>(DEFAULT_SETTINGS);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [amountStr, setAmountStr] = useState<string>('0');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isCalcOpen, setIsCalcOpen] = useState<boolean>(false);
@@ -69,11 +72,23 @@ export default function App() {
   const [isResultOpen, setIsResultOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Uygulama açılışında kayıtlı ayarları yükle
+  // Uygulama açılışında kayıtlı ayarları ve oturum durumunu yükle
   useEffect(() => {
     (async () => {
-      const saved = await loadSettings();
-      setSettings(saved);
+      try {
+        const saved = await loadSettings();
+        setSettings(saved);
+      } catch (e) {
+        console.error('Ayarlar yüklenemedi:', e);
+      }
+
+      try {
+        const loggedIn = await checkAuthSession();
+        setIsAuthenticated(loggedIn);
+      } catch (e) {
+        console.error('Oturum kontrol hatası:', e);
+        setIsAuthenticated(false);
+      }
     })();
   }, []);
 
@@ -281,6 +296,28 @@ export default function App() {
     }
   };
 
+  // Çıkış yapma fonksiyonu
+  const handleLogout = async () => {
+    await performLogout();
+    setIsAuthenticated(false);
+    setIsSettingsOpen(false);
+    resetScroll();
+  };
+
+  // Oturum kontrol ediliyor (Açılışta titremeyi ve ani parlamayı önler)
+  if (isAuthenticated === null) {
+    return (
+      <View style={styles.splashLoadingContainer}>
+        <ActivityIndicator size="large" color="#38BDF8" />
+      </View>
+    );
+  }
+
+  // Oturum kapalıysa Giriş Ekranını göster
+  if (!isAuthenticated) {
+    return <LoginScreen onLoginSuccess={() => setIsAuthenticated(true)} />;
+  }
+
   const numericAmount = getNumericAmount();
   const isSendDisabled = numericAmount <= 0 || isSubmitting;
 
@@ -483,6 +520,7 @@ export default function App() {
           setIsSettingsOpen(false);
           resetScroll();
         }}
+        onLogout={handleLogout}
       />
 
       {/* Result Modal (Gelişmiş Hata, Yetersiz Bakiye ve İptal Yönetimi) */}
@@ -505,6 +543,14 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  splashLoadingContainer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#0B132B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#0B132B',

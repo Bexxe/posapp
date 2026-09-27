@@ -19,7 +19,12 @@ export type IconName =
   | 'qr-code'
   | 'copy'
   | 'image'
-  | 'upload';
+  | 'upload'
+  | 'user'
+  | 'lock'
+  | 'eye'
+  | 'eye-off'
+  | 'log-out';
 
 interface AppIconProps {
   name: IconName;
@@ -195,6 +200,47 @@ export const AppIcon: React.FC<AppIconProps> = ({
           <Path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
           <Polyline points="17 8 12 3 7 8" />
           <Line x1="12" y1="3" x2="12" y2="15" />
+        </Svg>
+      );
+
+    case 'user':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <Circle cx="12" cy="7" r="4" />
+        </Svg>
+      );
+
+    case 'lock':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <Rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+          <Path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </Svg>
+      );
+
+    case 'eye':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <Path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <Circle cx="12" cy="12" r="3" />
+        </Svg>
+      );
+
+    case 'eye-off':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <Path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+          <Line x1="1" y1="1" x2="23" y2="23" />
+        </Svg>
+      );
+
+    case 'log-out':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <Path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <Polyline points="16 17 21 12 16 7" />
+          <Line x1="21" y1="12" x2="9" y2="12" />
         </Svg>
       );
 
