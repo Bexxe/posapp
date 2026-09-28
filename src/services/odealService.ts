@@ -25,12 +25,28 @@ export const POS_RESPONSE_CODES: Record<string, string> = {
 /**
  * Hata ve Cevap Kodlarını Analiz Edip Sınıflandırma
  */
-export function classifyResponse(code?: string, text?: string): {
+export function classifyResponse(code?: any, text?: any): {
   statusType: 'SUCCESS' | 'DECLINED' | 'INSUFFICIENT_FUNDS' | 'CANCELLED' | 'ERROR';
   cleanMessage: string;
 } {
-  const normCode = (code || '').toUpperCase().trim();
-  const lowerText = (text || '').toLowerCase();
+  const normCode = typeof code === 'string' ? code.toUpperCase().trim() : String(code ?? '').toUpperCase().trim();
+
+  let rawText = '';
+  if (typeof text === 'string') {
+    rawText = text;
+  } else if (text && typeof text === 'object') {
+    rawText =
+      (typeof text.message === 'string' ? text.message : '') ||
+      (typeof text.error === 'string' ? text.error : '') ||
+      (typeof text.detail === 'string' ? text.detail : '') ||
+      (text.message ? (typeof text.message === 'object' ? JSON.stringify(text.message) : String(text.message)) : '') ||
+      (text.error ? (typeof text.error === 'object' ? JSON.stringify(text.error) : String(text.error)) : '') ||
+      JSON.stringify(text);
+  } else if (text !== undefined && text !== null) {
+    rawText = String(text);
+  }
+
+  const lowerText = rawText.toLowerCase();
 
   if (normCode === '00') {
     return {
@@ -146,7 +162,7 @@ export function classifyResponse(code?: string, text?: string): {
 
   return {
     statusType: 'ERROR',
-    cleanMessage: text || 'İşlem Başarısız: Beklenmeyen bir hata oluştu.',
+    cleanMessage: rawText || 'İşlem Başarısız: Beklenmeyen bir hata oluştu.',
   };
 }
 
@@ -289,32 +305,71 @@ export async function sendBasketToOdeal(params: {
         signal: controller.signal,
       });
 
-      // Metro proxy 404 dönerse veya port 3001 proxy'si varsa dene
+      // Vercel serverless /api/odeal-proxy veya yerel port 3001 fallback denemesi
       if (isWeb && response.status === 404) {
         try {
-          const p3001 = await fetch('http://localhost:3001/api/v1/basket', {
+          const directApi = await fetch('/api/odeal-proxy?path=api/v1/basket', {
             method: 'POST',
             headers: requestHeaders,
             body: JSON.stringify(payload),
             signal: controller.signal,
           });
-          if (p3001.ok || p3001.status !== 404) {
-            response = p3001;
+          if (directApi.ok || directApi.status !== 404) {
+            response = directApi;
           }
         } catch (_) {}
+
+        if (
+          response.status === 404 &&
+          typeof window !== 'undefined' &&
+          (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ) {
+          try {
+            const p3001 = await fetch('http://localhost:3001/api/v1/basket', {
+              method: 'POST',
+              headers: requestHeaders,
+              body: JSON.stringify(payload),
+              signal: controller.signal,
+            });
+            if (p3001.ok || p3001.status !== 404) {
+              response = p3001;
+            }
+          } catch (_) {}
+        }
       }
     } catch (fetchErr: any) {
       if (isWeb) {
         try {
-          const p3001 = await fetch('http://localhost:3001/api/v1/basket', {
+          const directApi = await fetch('/api/odeal-proxy?path=api/v1/basket', {
             method: 'POST',
             headers: requestHeaders,
             body: JSON.stringify(payload),
             signal: controller.signal,
           });
-          response = p3001;
+          if (directApi.ok || directApi.status !== 404) {
+            response = directApi;
+          } else {
+            throw fetchErr;
+          }
         } catch (_) {
-          throw fetchErr;
+          if (
+            typeof window !== 'undefined' &&
+            (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+          ) {
+            try {
+              const p3001 = await fetch('http://localhost:3001/api/v1/basket', {
+                method: 'POST',
+                headers: requestHeaders,
+                body: JSON.stringify(payload),
+                signal: controller.signal,
+              });
+              response = p3001;
+            } catch (_) {
+              throw fetchErr;
+            }
+          } else {
+            throw fetchErr;
+          }
         }
       } else {
         throw fetchErr;
@@ -369,12 +424,24 @@ export async function sendBasketToOdeal(params: {
         responseData?.errorCode ||
         responseData?.errors?.[0]?.code;
 
-      const rawDetail =
-        responseData?.message ||
-        responseData?.error ||
-        responseData?.detail ||
-        (responseData?.errors ? JSON.stringify(responseData.errors) : '') ||
-        (responseData?.result?.message || '');
+      let rawDetail = '';
+      if (typeof responseData?.message === 'string' && responseData.message) {
+        rawDetail = responseData.message;
+      } else if (typeof responseData?.detail === 'string' && responseData.detail) {
+        rawDetail = responseData.detail;
+      } else if (typeof responseData?.error === 'string' && responseData.error) {
+        rawDetail = responseData.error;
+      } else if (responseData?.error && typeof responseData.error === 'object') {
+        rawDetail = responseData.error.message || responseData.error.code || JSON.stringify(responseData.error);
+      } else if (responseData?.errors && Array.isArray(responseData.errors)) {
+        rawDetail = responseData.errors
+          .map((e: any) => (typeof e === 'string' ? e : e?.message || JSON.stringify(e)))
+          .join(', ');
+      } else if (typeof responseData?.result?.message === 'string') {
+        rawDetail = responseData.result.message;
+      } else if (responseData && typeof responseData === 'object') {
+        rawDetail = JSON.stringify(responseData);
+      }
 
       const classification = classifyResponse(errCode, rawDetail);
 
@@ -384,7 +451,7 @@ export async function sendBasketToOdeal(params: {
         if (response.status === 401 || response.status === 403) {
           humanMessage = 'Ödeal Kimlik Doğrulama Hatası (401/403): Merchant Key veya Secret Key hatalı!';
         } else if (response.status === 404) {
-          humanMessage = `Ödeal Cihaz Kodu "${settings.externalDeviceKey}" bulunamadı. POS uygulamasında "Cihazlarım" sekmesinden cihaz kodunuzu doğrulayın.`;
+          humanMessage = `Ödeal Cihaz Kodu "${settings.externalDeviceKey}" bulunamadı veya Proxy endpointi mevcut değil (HTTP 404).`;
         } else {
           humanMessage = `Ödeal Servis Yanıtı (HTTP ${response.status})`;
         }
@@ -479,11 +546,23 @@ export async function testOdealConnection(settings: OdealSettings): Promise<{
 
     if (isWeb && response.status === 404) {
       try {
-        response = await fetch(`${directBaseUrl}/configuration`, {
+        const alt = await fetch('/api/odeal-proxy?path=api/v1/configuration', {
           method: 'GET',
           headers,
         });
+        if (alt.ok || alt.status !== 404) {
+          response = alt;
+        }
       } catch (_) {}
+
+      if (response.status === 404 && typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        try {
+          response = await fetch(`${directBaseUrl}/configuration`, {
+            method: 'GET',
+            headers,
+          });
+        } catch (_) {}
+      }
     }
 
     if (response.ok) {
@@ -556,10 +635,25 @@ export async function cancelOdealBasket(params: {
   }
 
   try {
-    const response = await fetch(requestUrl, {
+    let response = await fetch(requestUrl, {
       method: 'DELETE',
       headers,
     });
+
+    if (isWeb && response.status === 404) {
+      try {
+        const alt = await fetch(
+          `/api/odeal-proxy?path=api/v1/basket/delete&referenceCode=${encodeURIComponent(referenceCode)}`,
+          {
+            method: 'DELETE',
+            headers,
+          }
+        );
+        if (alt.ok || alt.status !== 404) {
+          response = alt;
+        }
+      } catch (_) {}
+    }
 
     if (response.status === 204 || response.ok) {
       return {
@@ -570,9 +664,9 @@ export async function cancelOdealBasket(params: {
 
     const data = await response.json().catch(() => null);
     const detail =
-      data?.message ||
-      data?.detail ||
-      data?.error ||
+      (typeof data?.message === 'string' ? data.message : '') ||
+      (typeof data?.detail === 'string' ? data.detail : '') ||
+      (typeof data?.error === 'string' ? data.error : data?.error?.message) ||
       (data ? JSON.stringify(data) : `HTTP ${response.status}`);
     return {
       success: false,
@@ -627,11 +721,24 @@ export async function cancelOdealPayment(params: {
   }
 
   try {
-    const response = await fetch(requestUrl, {
+    let response = await fetch(requestUrl, {
       method: 'PUT',
       headers,
       body: JSON.stringify({ basketReferenceCode }),
     });
+
+    if (isWeb && response.status === 404) {
+      try {
+        const alt = await fetch('/api/odeal-proxy?path=api/v1/payment/cancel', {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ basketReferenceCode }),
+        });
+        if (alt.ok || alt.status !== 404) {
+          response = alt;
+        }
+      } catch (_) {}
+    }
 
     if (response.ok) {
       return {
@@ -642,9 +749,9 @@ export async function cancelOdealPayment(params: {
 
     const data = await response.json().catch(() => null);
     const detail =
-      data?.message ||
-      data?.detail ||
-      data?.error ||
+      (typeof data?.message === 'string' ? data.message : '') ||
+      (typeof data?.detail === 'string' ? data.detail : '') ||
+      (typeof data?.error === 'string' ? data.error : data?.error?.message) ||
       (data ? JSON.stringify(data) : `HTTP ${response.status}`);
     return {
       success: false,
